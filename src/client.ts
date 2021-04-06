@@ -14,9 +14,25 @@ import * as t from 'io-ts';
 import { validator } from 'io-ts-validator';
 import * as URITemplate_ from 'url-template';
 
-type FetchLocation = globalThis.RequestInfo;
-type FetchOptions = globalThis.RequestInit;
-type FetchResult = globalThis.Response;
+export type Body = string;
+export type FetchLocation = string;
+export type FetchOptions = {
+  method: string;
+  headers: Record<HeaderName, string>;
+  body: Body;
+};
+export type FetchResult = {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  text: () => string;
+  headers: globalThis.Headers;
+};
+
+export type Fetch = (u: FetchLocation, o: FetchOptions) => Promise<FetchResult>;
+
+type HeaderName = string;
+type HeaderCSV = unknown;
 
 type Warnings = Array<Err>;
 type These<E, A> = {
@@ -26,8 +42,6 @@ type These<E, A> = {
 type URI = string;
 type URITemplate = string;
 type URIVariables = Record<string, string>;
-type HeaderName = string;
-type HeaderCSV = string;
 type Headers = Record<HeaderName, HeaderCSV>;
 
 function fromFetchResult(result: FetchResult): Headers {
@@ -39,30 +53,18 @@ function fromFetchResult(result: FetchResult): Headers {
 }
 
 type Json = unknown;
-type Body = string;
 
 type Response = {
   headers: Headers;
   body: Body;
 };
 
-type Fetch = (u: FetchLocation, o: FetchOptions) => Promise<FetchResult>;
-
 type Err = {
-  code: number;
   reason: string;
-  description: string;
   debug?: Record<string, unknown>;
 };
-const err = (
-  code: number,
-  reason: string,
-  description: string,
-  debug?: Record<string, unknown>,
-): Err => ({
-  code,
+const err = (reason: string, debug?: Record<string, unknown>): Err => ({
   reason,
-  description,
   debug,
 });
 
@@ -73,12 +75,12 @@ function expandURITemplate(
     pipe(
       Either_.tryCatch(
         () => URITemplate_.parse(template),
-        () => err(500, 'io-ts-rpc client failed to parse url template', ''),
+        () => err('io-ts-rpc client failed to parse url template'),
       ),
       Either_.chain((expander) =>
         Either_.tryCatch(
           () => expander.expand(vars),
-          () => err(500, 'io-ts-rpc client failed to expand url template', ''),
+          () => err('io-ts-rpc client failed to expand url template'),
         ),
       ),
     );
@@ -126,7 +128,7 @@ export function client<
     return pipe(
       validator(HrefTemplateVariables).encodeEither(vars),
       Either_.mapLeft((errors: Array<string>) =>
-        err(500, 'io-ts-rpc client failed to encode request url variables', '', {
+        err('io-ts-rpc client failed to encode request url variables', {
           input: JSON.parse(JSON.stringify(vars)),
           errors: errors,
         }),
@@ -135,8 +137,7 @@ export function client<
       Either_.chain((expanded) =>
         Either_.tryCatch(
           () => new URL(expanded).href,
-          (): Err =>
-            err(500, 'io-ts-rpc client failed to expand request url template', ''),
+          (): Err => err('io-ts-rpc client failed to expand request url template'),
         ),
       ),
     );
@@ -147,14 +148,14 @@ export function client<
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
-    return Either_.left(err(500, 'Method not allowed', ''));
+    return Either_.left(err('Method not allowed'));
   }
 
   function encodeHeaders(request: HS): Either<Err, Headers> {
     return pipe(
       validator(RequestHeaders).encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        err(500, 'io-ts-rpc client failed to encode request headers', '', {
+        err('io-ts-rpc client failed to encode request headers', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -166,7 +167,7 @@ export function client<
     return pipe(
       validator(Request, 'json').encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        err(500, 'io-ts-rpc client failed to stringify request body', '', {
+        err('io-ts-rpc client failed to stringify request body', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -178,7 +179,7 @@ export function client<
     return pipe(
       validator(Response, 'json').decodeEither(body),
       Either_.mapLeft((errors: Array<string>) =>
-        err(500, 'io-ts-rpc client failed to parse response body', '', {
+        err('io-ts-rpc client failed to parse response body', {
           input: JSON.parse(JSON.stringify(body)),
           errors: errors,
         }),
@@ -193,7 +194,7 @@ export function client<
       Either_.fold(
         (errors: Array<string>) =>
           Either_.right([
-            err(500, 'io-ts-rpc client failed to parse response headers', '', {
+            err('io-ts-rpc client failed to parse response headers', {
               input: JSON.parse(JSON.stringify(headers)),
               errors: errors,
             }),
@@ -248,7 +249,7 @@ export function client<
               async (): Promise<Response> => {
                 const result = await fetch(encoded.url, {
                   method: encoded.method,
-                  headers: encoded.headers,
+                  headers: encoded.headers as Record<string, string>,
                   body: encoded.request,
                 });
 
@@ -265,16 +266,11 @@ export function client<
                 return response;
               },
               (error): Err =>
-                err(
-                  500,
-                  'io-ts-rpc client failed to fetch response',
-                  'Unexpected failure while calling fetch',
-                  {
-                    title: String(error),
-                    details: error,
-                    request: request,
-                  },
-                ),
+                err('io-ts-rpc client failed to fetch response', {
+                  title: String(error),
+                  details: error,
+                  request: request,
+                }),
             ),
           ),
       ),
