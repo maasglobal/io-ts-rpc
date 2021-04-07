@@ -1,6 +1,6 @@
 {
   "name": "io-ts-rpc",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Remote procedure calls with io-ts decoder/encoder support",
   "main": "lib/index.js",
   "files": [
@@ -14,8 +14,8 @@
     "eslint": "eslint --max-warnings=0 '**/*.{ts,js,json}'",
     "lint": "yarn eslint",
     "ci": "yarn lint && yarn typecheck && yarn test && yarn build",
-    "deploy-npm": "yarn ci && yarn publish",
-    "deploy-alpha": "yarn ci && yarn publish --tag alpha"
+    "deploy-npm": "yarn ci && yarn publish --non-interactive",
+    "deploy-alpha": "yarn deploy-npm --tag alpha"
   },
   "peerDependencies": {
     "fp-ts": "^2.9.0",
