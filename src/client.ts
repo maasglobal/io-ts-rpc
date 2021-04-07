@@ -11,7 +11,7 @@ import { TaskEither } from 'fp-ts/lib/TaskEither';
 import * as TaskEither_ from 'fp-ts/lib/TaskEither';
 import * as t from 'io-ts';
 import { validator } from 'io-ts-validator';
-import * as URITemplate_ from 'url-template';
+import { parse } from 'url-template';
 
 export type HeaderName = string;
 export type HeaderCSV = unknown;
@@ -74,13 +74,21 @@ function expandURITemplate(
   return (vars) =>
     pipe(
       Either_.tryCatch(
-        () => URITemplate_.parse(template),
-        () => rpcError('io-ts-rpc client failed to parse url template'),
+        () => parse(template),
+        (errors) =>
+          rpcError('io-ts-rpc client failed to parse url template', {
+            template,
+            errors,
+          }),
       ),
       Either_.chain((expander) =>
         Either_.tryCatch(
           () => expander.expand(vars),
-          () => rpcError('io-ts-rpc client failed to expand url template'),
+          (errors) =>
+            rpcError('io-ts-rpc client failed to expand url template', {
+              input: JSON.parse(JSON.stringify(vars)),
+              errors,
+            }),
         ),
       ),
     );
@@ -189,9 +197,18 @@ export function tunnel<
       Either_.chain(expandURITemplate(template)),
       Either_.chain((expanded) =>
         Either_.tryCatch(
-          () => new URL(expanded).href,
-          (): RpcError =>
-            rpcError('io-ts-rpc client failed to expand request url template'),
+          () => {
+            if (expanded.includes('://') === false) {
+              // relative URL
+              return expanded;
+            }
+            return new URL(expanded).href;
+          },
+          (errors): RpcError =>
+            rpcError('io-ts-rpc client failed to parse expanded request url', {
+              expanded,
+              errors,
+            }),
         ),
       ),
     );
@@ -202,7 +219,7 @@ export function tunnel<
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
-    return Either_.left(rpcError('Method not allowed'));
+    return Either_.left(rpcError('Method not allowed', { method }));
   }
 
   function encodeHeaders(request: HS): Either<RpcError, Headers> {
