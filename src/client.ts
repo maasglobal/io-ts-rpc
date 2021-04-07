@@ -326,13 +326,6 @@ export function tunnel<
                   headers: encoded.headers as Record<string, string>,
                   body: encoded.request,
                 });
-
-                if (result.ok === false) {
-                  // eslint-disable-next-line fp/no-throw
-                  throw new Error(
-                    `${result.status}: ${result.statusText}, while calling ${encoded.url} with ${encoded.request}`,
-                  );
-                }
                 const response: Response = {
                   headers: fromFetchResult(result),
                   body: await result.text(),
