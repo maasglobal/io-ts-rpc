@@ -5,7 +5,6 @@ import { Either, either as Either__ } from 'fp-ts/lib/Either';
 import * as Either_ from 'fp-ts/lib/Either';
 import { pipe } from 'fp-ts/lib/function';
 import * as IO_ from 'fp-ts/lib/IO';
-import { ReaderTaskEither } from 'fp-ts/lib/ReaderTaskEither';
 import { Task } from 'fp-ts/lib/Task';
 import * as Task_ from 'fp-ts/lib/Task';
 import { TaskEither } from 'fp-ts/lib/TaskEither';
@@ -14,6 +13,8 @@ import * as t from 'io-ts';
 import { validator } from 'io-ts-validator';
 import * as URITemplate_ from 'url-template';
 
+export type HeaderName = string;
+export type HeaderCSV = unknown;
 export type Body = string;
 export type FetchLocation = string;
 export type FetchOptions = {
@@ -25,16 +26,15 @@ export type FetchResult = {
   ok: boolean;
   status: number;
   statusText: string;
-  text: () => string;
-  headers: globalThis.Headers;
+  text: () => Promise<string>;
+  headers: {
+    forEach: (cb: (n: HeaderName, csv: HeaderCSV) => void) => void;
+  };
 };
 
 export type Fetch = (u: FetchLocation, o: FetchOptions) => Promise<FetchResult>;
 
-type HeaderName = string;
-type HeaderCSV = unknown;
-
-type Warnings = Array<Err>;
+type Warnings = Array<RpcError>;
 type These<E, A> = {
   body: A;
   warnings: E;
@@ -59,28 +59,28 @@ type Response = {
   body: Body;
 };
 
-type Err = {
+export type RpcError = {
   reason: string;
   debug?: Record<string, unknown>;
 };
-const err = (reason: string, debug?: Record<string, unknown>): Err => ({
+export const rpcError = (reason: string, debug?: Record<string, unknown>): RpcError => ({
   reason,
   debug,
 });
 
 function expandURITemplate(
   template: URITemplate,
-): (vars: URIVariables) => Either<Err, URI> {
+): (vars: URIVariables) => Either<RpcError, URI> {
   return (vars) =>
     pipe(
       Either_.tryCatch(
         () => URITemplate_.parse(template),
-        () => err('io-ts-rpc client failed to parse url template'),
+        () => rpcError('io-ts-rpc client failed to parse url template'),
       ),
       Either_.chain((expander) =>
         Either_.tryCatch(
           () => expander.expand(vars),
-          () => err('io-ts-rpc client failed to expand url template'),
+          () => rpcError('io-ts-rpc client failed to expand url template'),
         ),
       ),
     );
@@ -89,8 +89,35 @@ function expandURITemplate(
 type Method = 'POST' | 'GET';
 type RPCMethod = NonNullable<RequestInit['method']>;
 
-/* eslint-disable @typescript-eslint/naming-convention */
 export type Endpoint<UT, UV, HS, SS, TH, TS> = {
+  hrefTemplate: UT;
+  HrefTemplateVariables: t.Type<UV, URIVariables>;
+  RequestHeaders: t.Type<HS, Headers>;
+  Request: t.Type<SS, Json>;
+  ResponseHeaders: t.Type<TH, Headers>;
+  targetHints: TH;
+  Response: t.Type<TS, Json>;
+};
+export const endpoint = <UT, UV, HS, SS, TH, TS>(
+  hrefTemplate: UT,
+  HrefTemplateVariables: t.Type<UV, URIVariables>,
+  RequestHeaders: t.Type<HS, Headers>,
+  Request: t.Type<SS, Json>,
+  ResponseHeaders: t.Type<TH, Headers>,
+  targetHints: TH,
+  Response: t.Type<TS, Json>,
+): Endpoint<UT, UV, HS, SS, TH, TS> => ({
+  hrefTemplate,
+  HrefTemplateVariables,
+  RequestHeaders,
+  Request,
+  ResponseHeaders,
+  targetHints,
+  Response,
+});
+
+/* eslint-disable @typescript-eslint/naming-convention */
+export type HyperSchema<UT, UV, HS, SS, TH, TS> = {
   default_links_implementation_TargetHints: TH;
   default_links_implementation_Href: UT;
   _links_implementation_HrefSchema: t.Type<UV, URIVariables>;
@@ -99,9 +126,35 @@ export type Endpoint<UT, UV, HS, SS, TH, TS> = {
   _links_implementation_SubmissionSchema: t.Type<SS, Json>;
   _links_implementation_TargetSchema: t.Type<TS, Json>;
 };
+
+export function fromHyperSchema<UT, UV, HS, SS, TH, TS>(
+  hyper: HyperSchema<UT, UV, HS, SS, TH, TS>,
+): Endpoint<UT, UV, HS, SS, TH, TS> {
+  const {
+    default_links_implementation_TargetHints,
+    default_links_implementation_Href,
+    _links_implementation_HrefSchema,
+    _links_implementation_TargetHints,
+    _links_implementation_HeaderSchema,
+    _links_implementation_SubmissionSchema,
+    _links_implementation_TargetSchema,
+  } = hyper;
+
+  return endpoint(
+    default_links_implementation_Href,
+    _links_implementation_HrefSchema,
+    _links_implementation_HeaderSchema,
+    _links_implementation_SubmissionSchema,
+    _links_implementation_TargetHints,
+    default_links_implementation_TargetHints,
+    _links_implementation_TargetSchema,
+  );
+}
 /* eslint-enable @typescript-eslint/naming-convention */
 
-export function client<
+export type Tunnel<I, O> = (i: I) => TaskEither<RpcError, O>;
+
+export function tunnel<
   M extends Method,
   UT extends URITemplate,
   UV,
@@ -110,25 +163,25 @@ export function client<
   TH extends Record<string, string>,
   TS
 >(
-  target: UV,
   method: M,
+  target: UV,
   headers: HS,
-  endpoint: Endpoint<UT, UV, HS, SS, TH, TS>,
+  {
+    targetHints,
+    hrefTemplate,
+    HrefTemplateVariables,
+    ResponseHeaders,
+    RequestHeaders,
+    Request,
+    Response,
+  }: Endpoint<UT, UV, HS, SS, TH, TS>,
   fetch: Fetch,
-): ReaderTaskEither<SS, Err, TS> {
-  const targetHints = endpoint.default_links_implementation_TargetHints;
-  const hrefTemplate = endpoint.default_links_implementation_Href;
-  const HrefTemplateVariables = endpoint._links_implementation_HrefSchema;
-  const ResponseHeaders = endpoint._links_implementation_TargetHints;
-  const RequestHeaders = endpoint._links_implementation_HeaderSchema;
-  const Request = endpoint._links_implementation_SubmissionSchema;
-  const Response = endpoint._links_implementation_TargetSchema;
-
-  function encodeUrl(template: UT, vars: UV): Either<Err, URI> {
+): Tunnel<SS, TS> {
+  function encodeUrl(template: UT, vars: UV): Either<RpcError, URI> {
     return pipe(
       validator(HrefTemplateVariables).encodeEither(vars),
       Either_.mapLeft((errors: Array<string>) =>
-        err('io-ts-rpc client failed to encode request url variables', {
+        rpcError('io-ts-rpc client failed to encode request url variables', {
           input: JSON.parse(JSON.stringify(vars)),
           errors: errors,
         }),
@@ -137,25 +190,26 @@ export function client<
       Either_.chain((expanded) =>
         Either_.tryCatch(
           () => new URL(expanded).href,
-          (): Err => err('io-ts-rpc client failed to expand request url template'),
+          (): RpcError =>
+            rpcError('io-ts-rpc client failed to expand request url template'),
         ),
       ),
     );
   }
 
-  function encodeMethod(method: M): Either<Err, RPCMethod> {
+  function encodeMethod(method: M): Either<RpcError, RPCMethod> {
     const allowed = targetHints?.allow?.split(',') ?? [];
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
-    return Either_.left(err('Method not allowed'));
+    return Either_.left(rpcError('Method not allowed'));
   }
 
-  function encodeHeaders(request: HS): Either<Err, Headers> {
+  function encodeHeaders(request: HS): Either<RpcError, Headers> {
     return pipe(
       validator(RequestHeaders).encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        err('io-ts-rpc client failed to encode request headers', {
+        rpcError('io-ts-rpc client failed to encode request headers', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -163,11 +217,11 @@ export function client<
     );
   }
 
-  function encodeRequest(request: SS): Either<Err, Body> {
+  function encodeRequest(request: SS): Either<RpcError, Body> {
     return pipe(
       validator(Request, 'json').encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        err('io-ts-rpc client failed to stringify request body', {
+        rpcError('io-ts-rpc client failed to stringify request body', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -175,11 +229,11 @@ export function client<
     );
   }
 
-  function parseBody(body: Body): Either<Err, TS> {
+  function parseBody(body: Body): Either<RpcError, TS> {
     return pipe(
       validator(Response, 'json').decodeEither(body),
       Either_.mapLeft((errors: Array<string>) =>
-        err('io-ts-rpc client failed to parse response body', {
+        rpcError('io-ts-rpc client failed to parse response body', {
           input: JSON.parse(JSON.stringify(body)),
           errors: errors,
         }),
@@ -187,14 +241,14 @@ export function client<
     );
   }
 
-  function parseHeaders(headers: Headers): Either<Err, Warnings> {
+  function parseHeaders(headers: Headers): Either<RpcError, Warnings> {
     return pipe(
       headers,
       validator(ResponseHeaders).decodeEither,
       Either_.fold(
         (errors: Array<string>) =>
           Either_.right([
-            err('io-ts-rpc client failed to parse response headers', {
+            rpcError('io-ts-rpc client failed to parse response headers', {
               input: JSON.parse(JSON.stringify(headers)),
               errors: errors,
             }),
@@ -204,7 +258,10 @@ export function client<
     );
   }
 
-  function parseResponse({ body, headers }: Response): Either<Err, These<Warnings, TS>> {
+  function parseResponse({
+    body,
+    headers,
+  }: Response): Either<RpcError, These<Warnings, TS>> {
     return pipe(
       {
         body: parseBody(body),
@@ -243,7 +300,7 @@ export function client<
           method: RPCMethod;
           headers: Headers;
           request: Body;
-        }): TaskEither<Err, Response> =>
+        }): TaskEither<RpcError, Response> =>
           pipe(
             TaskEither_.tryCatch(
               async (): Promise<Response> => {
@@ -265,8 +322,8 @@ export function client<
                 };
                 return response;
               },
-              (error): Err =>
-                err('io-ts-rpc client failed to fetch response', {
+              (error): RpcError =>
+                rpcError('io-ts-rpc client failed to fetch response', {
                   title: String(error),
                   details: error,
                   request: request,
@@ -276,7 +333,7 @@ export function client<
       ),
       TaskEither_.chainEitherK(parseResponse),
       TaskEither_.chain(
-        (these): TaskEither<Err, TS> =>
+        (these): TaskEither<RpcError, TS> =>
           pipe(logWarnings(these), Task_.map(Either_.right)),
       ),
     );

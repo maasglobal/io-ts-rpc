@@ -1,7 +1,7 @@
-import { client } from '../client';
+import { tunnel } from '../client';
 
 describe('io-ts-rpc', () => {
-  it('should provide rpc client', () => {
-    expect(typeof client).not.toEqual('undefined');
+  it('should provide rpc tunnel', () => {
+    expect(typeof tunnel).not.toEqual('undefined');
   });
 });
