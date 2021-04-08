@@ -46,7 +46,8 @@ type Headers = Record<HeaderName, HeaderCSV>;
 
 function fromFetchResult(result: FetchResult): Headers {
   const tmp: Array<[HeaderName, HeaderCSV]> = [];
-  result.headers.forEach((name, csv) => {
+  // forEach returns value, key instead of key, value
+  result.headers.forEach((csv, name) => {
     tmp.push([name, csv]);
   });
   return Object.fromEntries(tmp);
