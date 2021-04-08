@@ -1,4 +1,4 @@
-import { tunnel } from '../client';
+import { tunnel } from '../index';
 
 describe('io-ts-rpc', () => {
   it('should provide rpc tunnel', () => {
