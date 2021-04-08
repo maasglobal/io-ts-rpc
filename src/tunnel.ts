@@ -9,157 +9,19 @@ import { Task } from 'fp-ts/lib/Task';
 import * as Task_ from 'fp-ts/lib/Task';
 import { TaskEither } from 'fp-ts/lib/TaskEither';
 import * as TaskEither_ from 'fp-ts/lib/TaskEither';
-import * as t from 'io-ts';
 import { validator } from 'io-ts-validator';
-import { parse } from 'url-template';
 
-export type HeaderName = string;
-export type HeaderCSV = unknown;
-export type Body = string;
-export type FetchLocation = string;
-export type FetchOptions = {
-  method: string;
-  headers: Record<HeaderName, string>;
-  body: Body;
-};
-export type FetchResult = {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  text: () => Promise<string>;
-  headers: {
-    forEach: (cb: (n: HeaderName, csv: HeaderCSV) => void) => void;
-  };
-};
-
-export type Fetch = (u: FetchLocation, o: FetchOptions) => Promise<FetchResult>;
-
-type Warnings = Array<RpcError>;
-type These<E, A> = {
-  body: A;
-  warnings: E;
-};
-type URI = string;
-type URITemplate = string;
-type URIVariables = Record<string, string>;
-type Headers = Record<HeaderName, HeaderCSV>;
-
-function fromFetchResult(result: FetchResult): Headers {
-  const tmp: Array<[HeaderName, HeaderCSV]> = [];
-  // forEach returns value, key instead of key, value
-  result.headers.forEach((csv, name) => {
-    tmp.push([name, csv]);
-  });
-  return Object.fromEntries(tmp);
-}
-
-type Json = unknown;
+import { Endpoint } from './endpoint';
+import { RpcError, rpcError, These, Warnings } from './err';
+import { Body, Fetch, Headers, Method } from './fetch';
+import * as Headers_ from './headers';
+import { URI, URITemplate } from './uri-template';
+import * as URITemplate_ from './uri-template';
 
 type Response = {
   headers: Headers;
   body: Body;
 };
-
-export type RpcError = {
-  reason: string;
-  debug?: Record<string, unknown>;
-};
-export const rpcError = (reason: string, debug?: Record<string, unknown>): RpcError => ({
-  reason,
-  debug,
-});
-
-function expandURITemplate(
-  template: URITemplate,
-): (vars: URIVariables) => Either<RpcError, URI> {
-  return (vars) =>
-    pipe(
-      Either_.tryCatch(
-        () => parse(template),
-        (errors) =>
-          rpcError('io-ts-rpc client failed to parse url template', {
-            template,
-            errors,
-          }),
-      ),
-      Either_.chain((expander) =>
-        Either_.tryCatch(
-          () => expander.expand(vars),
-          (errors) =>
-            rpcError('io-ts-rpc client failed to expand url template', {
-              input: JSON.parse(JSON.stringify(vars)),
-              errors,
-            }),
-        ),
-      ),
-    );
-}
-
-type Method = 'POST' | 'GET';
-type RPCMethod = NonNullable<RequestInit['method']>;
-
-export type Endpoint<UT, UV, HS, SS, TH, TS> = {
-  hrefTemplate: UT;
-  HrefTemplateVariables: t.Type<UV, URIVariables>;
-  RequestHeaders: t.Type<HS, Headers>;
-  Request: t.Type<SS, Json>;
-  ResponseHeaders: t.Type<TH, Headers>;
-  targetHints: TH;
-  Response: t.Type<TS, Json>;
-};
-export const endpoint = <UT, UV, HS, SS, TH, TS>(
-  hrefTemplate: UT,
-  HrefTemplateVariables: t.Type<UV, URIVariables>,
-  RequestHeaders: t.Type<HS, Headers>,
-  Request: t.Type<SS, Json>,
-  ResponseHeaders: t.Type<TH, Headers>,
-  targetHints: TH,
-  Response: t.Type<TS, Json>,
-): Endpoint<UT, UV, HS, SS, TH, TS> => ({
-  hrefTemplate,
-  HrefTemplateVariables,
-  RequestHeaders,
-  Request,
-  ResponseHeaders,
-  targetHints,
-  Response,
-});
-
-/* eslint-disable @typescript-eslint/naming-convention */
-export type HyperSchema<UT, UV, HS, SS, TH, TS> = {
-  default_links_implementation_TargetHints: TH;
-  default_links_implementation_Href: UT;
-  _links_implementation_HrefSchema: t.Type<UV, URIVariables>;
-  _links_implementation_TargetHints: t.Type<TH, Headers>;
-  _links_implementation_HeaderSchema: t.Type<HS, Headers>;
-  _links_implementation_SubmissionSchema: t.Type<SS, Json>;
-  _links_implementation_TargetSchema: t.Type<TS, Json>;
-};
-
-export function fromHyperSchema<UT, UV, HS, SS, TH, TS>(
-  hyper: HyperSchema<UT, UV, HS, SS, TH, TS>,
-): Endpoint<UT, UV, HS, SS, TH, TS> {
-  const {
-    default_links_implementation_TargetHints,
-    default_links_implementation_Href,
-    _links_implementation_HrefSchema,
-    _links_implementation_TargetHints,
-    _links_implementation_HeaderSchema,
-    _links_implementation_SubmissionSchema,
-    _links_implementation_TargetSchema,
-  } = hyper;
-
-  return endpoint(
-    default_links_implementation_Href,
-    _links_implementation_HrefSchema,
-    _links_implementation_HeaderSchema,
-    _links_implementation_SubmissionSchema,
-    _links_implementation_TargetHints,
-    default_links_implementation_TargetHints,
-    _links_implementation_TargetSchema,
-  );
-}
-/* eslint-enable @typescript-eslint/naming-convention */
 
 export type Tunnel<I, O> = (i: I) => TaskEither<RpcError, O>;
 
@@ -195,7 +57,7 @@ export function tunnel<
           errors: errors,
         }),
       ),
-      Either_.chain(expandURITemplate(template)),
+      Either_.chain((vars) => URITemplate_.expand(vars)(template)),
       Either_.chain((expanded) =>
         Either_.tryCatch(
           () => {
@@ -215,7 +77,7 @@ export function tunnel<
     );
   }
 
-  function encodeMethod(method: M): Either<RpcError, RPCMethod> {
+  function encodeMethod(method: M): Either<RpcError, Method> {
     const allowed = targetHints?.allow?.split(',') ?? [];
     if (allowed.includes(method)) {
       return Either_.right(method);
@@ -315,7 +177,7 @@ export function tunnel<
       TaskEither_.chain(
         (encoded: {
           url: URI;
-          method: RPCMethod;
+          method: Method;
           headers: Headers;
           request: Body;
         }): TaskEither<RpcError, Response> =>
@@ -324,11 +186,11 @@ export function tunnel<
               async (): Promise<Response> => {
                 const result = await fetch(encoded.url, {
                   method: encoded.method,
-                  headers: encoded.headers as Record<string, string>,
+                  headers: encoded.headers,
                   body: encoded.request,
                 });
                 const response: Response = {
-                  headers: fromFetchResult(result),
+                  headers: Headers_.fromFetchResult(result),
                   body: await result.text(),
                 };
                 return response;
