@@ -18,7 +18,7 @@ import * as Headers_ from './headers';
 import { URI, URITemplate } from './uri-template';
 import * as URITemplate_ from './uri-template';
 
-type Response = {
+type FlatResponse = {
   headers: Headers;
   body: Body;
 };
@@ -141,14 +141,11 @@ export function tunnel<
   function parseResponse({
     body,
     headers,
-  }: Response): Either<RpcError, These<Warnings, TS>> {
+  }: FlatResponse): Either<RpcError, These<Warnings, TS>> {
     return pipe(
       {
         body: parseBody(body),
-        warnings: parseHeaders({
-          ...headers,
-          allow: 'POST', // allow: 'POST' is implicit when code is 200
-        }),
+        warnings: parseHeaders(headers),
       },
       Apply_.sequenceS(Either__),
     );
@@ -175,33 +172,30 @@ export function tunnel<
       Apply_.sequenceS(Either__),
       Task_.of,
       TaskEither_.chain(
-        (encoded: {
-          url: URI;
-          method: Method;
-          headers: Headers;
-          request: Body;
-        }): TaskEither<RpcError, Response> =>
-          pipe(
-            TaskEither_.tryCatch(
-              async (): Promise<Response> => {
-                const result = await fetch(encoded.url, {
-                  method: encoded.method,
-                  headers: encoded.headers,
-                  body: encoded.request,
-                });
-                const response: Response = {
-                  headers: Headers_.fromFetchResult(result),
-                  body: await result.text(),
-                };
-                return response;
-              },
-              (error): RpcError =>
-                rpcError('io-ts-rpc client failed to fetch response', {
-                  title: String(error),
-                  details: error,
-                  request: request,
-                }),
-            ),
+        (encoded: { url: URI; method: Method; headers: Headers; request: Body }) =>
+          TaskEither_.tryCatch(
+            async (): Promise<FlatResponse> => {
+              const result = await fetch(encoded.url, {
+                method: encoded.method,
+                headers: encoded.headers,
+                body: encoded.request,
+              });
+              const implicit: Headers = result.ok ? { allow: encoded.method } : {};
+              const explicit: Headers = Headers_.fromFetchResult(result);
+              return {
+                headers: {
+                  ...implicit,
+                  ...explicit,
+                },
+                body: await result.text(),
+              };
+            },
+            (error): RpcError =>
+              rpcError('io-ts-rpc client failed to fetch response', {
+                title: String(error),
+                details: error,
+                request: request,
+              }),
           ),
       ),
       TaskEither_.chainEitherK(parseResponse),
