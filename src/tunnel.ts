@@ -1,18 +1,16 @@
 import * as Apply_ from 'fp-ts/lib/Apply';
-import * as Array_ from 'fp-ts/lib/Array';
-import * as Console_ from 'fp-ts/lib/Console';
 import { Either } from 'fp-ts/lib/Either';
 import * as Either_ from 'fp-ts/lib/Either';
 import { pipe } from 'fp-ts/lib/function';
-import * as IO_ from 'fp-ts/lib/IO';
-import { Task } from 'fp-ts/lib/Task';
 import * as Task_ from 'fp-ts/lib/Task';
-import { TaskEither } from 'fp-ts/lib/TaskEither';
 import * as TaskEither_ from 'fp-ts/lib/TaskEither';
+import { TaskThese } from 'fp-ts/lib/TaskThese';
+import { These } from 'fp-ts/lib/These';
+import * as These_ from 'fp-ts/lib/These';
 import { validator } from 'io-ts-validator';
 
 import { Endpoint } from './endpoint';
-import { RpcError, rpcError, These, Warnings } from './err';
+import { Errors, singleError } from './err';
 import { Body, Fetch, Headers, Method } from './fetch';
 import * as Headers_ from './headers';
 import { URI, URITemplate } from './uri-template';
@@ -23,7 +21,7 @@ type FlatResponse = {
   body: Body;
 };
 
-export type Tunnel<I, O> = (i: I) => TaskEither<RpcError, O>;
+export type Tunnel<I, O> = (i: I) => TaskThese<Errors, O>;
 
 export function tunnel<
   M extends Method,
@@ -48,11 +46,11 @@ export function tunnel<
   }: Endpoint<UT, UV, HS, SS, TH, TS>,
   fetch: Fetch,
 ): Tunnel<SS, TS> {
-  function encodeUrl(template: UT, vars: UV): Either<RpcError, URI> {
+  function encodeUrl(template: UT, vars: UV): Either<Errors, URI> {
     return pipe(
       validator(HrefTemplateVariables).encodeEither(vars),
       Either_.mapLeft((errors: Array<string>) =>
-        rpcError('io-ts-rpc client failed to encode request url variables', {
+        singleError('io-ts-rpc client failed to encode request url variables', {
           input: JSON.parse(JSON.stringify(vars)),
           errors: errors,
         }),
@@ -67,8 +65,8 @@ export function tunnel<
             }
             return new URL(expanded).href;
           },
-          (errors): RpcError =>
-            rpcError('io-ts-rpc client failed to parse expanded request url', {
+          (errors): Errors =>
+            singleError('io-ts-rpc client failed to parse expanded request url', {
               expanded,
               errors,
             }),
@@ -77,19 +75,19 @@ export function tunnel<
     );
   }
 
-  function encodeMethod(method: M): Either<RpcError, Method> {
+  function encodeMethod(method: M): Either<Errors, Method> {
     const allowed = targetHints['allow']?.split(',') ?? [];
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
-    return Either_.left(rpcError('Method not allowed', { method }));
+    return Either_.left(singleError('Method not allowed', { method }));
   }
 
-  function encodeHeaders(request: HS): Either<RpcError, Headers> {
+  function encodeHeaders(request: HS): Either<Errors, Headers> {
     return pipe(
       validator(RequestHeaders).encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        rpcError('io-ts-rpc client failed to encode request headers', {
+        singleError('io-ts-rpc client failed to encode request headers', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -97,11 +95,11 @@ export function tunnel<
     );
   }
 
-  function encodeRequest(request: SS): Either<RpcError, Body> {
+  function encodeRequest(request: SS): Either<Errors, Body> {
     return pipe(
       validator(Request, 'json').encodeEither(request),
       Either_.mapLeft((errors: Array<string>) =>
-        rpcError('io-ts-rpc client failed to stringify request body', {
+        singleError('io-ts-rpc client failed to stringify request body', {
           input: JSON.parse(JSON.stringify(request)),
           errors: errors,
         }),
@@ -109,11 +107,11 @@ export function tunnel<
     );
   }
 
-  function parseBody(body: Body): Either<RpcError, TS> {
+  function parseBody(body: Body): Either<Errors, TS> {
     return pipe(
       validator(Response, 'json').decodeEither(body),
       Either_.mapLeft((errors: Array<string>) =>
-        rpcError('io-ts-rpc client failed to parse response body', {
+        singleError('io-ts-rpc client failed to parse response body', {
           input: JSON.parse(JSON.stringify(body)),
           errors: errors,
         }),
@@ -121,43 +119,35 @@ export function tunnel<
     );
   }
 
-  function parseHeaders(headers: Headers): Either<RpcError, Warnings> {
+  function parseHeaders(headers: Headers): These<Errors, Headers> {
     return pipe(
       headers,
       validator(ResponseHeaders).decodeEither,
       Either_.fold(
         (errors: Array<string>) =>
-          Either_.right([
-            rpcError('io-ts-rpc client failed to parse response headers', {
+          These_.both(
+            singleError('io-ts-rpc client failed to parse response headers', {
               input: JSON.parse(JSON.stringify(headers)),
               errors: errors,
             }),
-          ]),
-        (_targetHints) => Either_.right([]),
+            headers,
+          ),
+        (_targetHints) => These_.right(headers),
       ),
     );
   }
 
-  function parseResponse({
-    body,
-    headers,
-  }: FlatResponse): Either<RpcError, These<Warnings, TS>> {
+  function parseResponse({ body, headers }: FlatResponse): These<Errors, TS> {
     return pipe(
-      {
-        body: parseBody(body),
-        warnings: parseHeaders(headers),
-      },
-      Apply_.sequenceS(Either_.Apply),
-    );
-  }
-
-  function logWarnings<T>(theseWarnings: These<Warnings, T>): Task<T> {
-    return pipe(
-      Task_.of(theseWarnings),
-      Task_.chainFirst(({ warnings }) =>
-        pipe(warnings, Array_.map(Console_.warn), IO_.sequenceArray, Task_.fromIO),
+      parseBody(body),
+      Either_.fold(
+        (err) => These_.left(err),
+        (body) =>
+          pipe(
+            parseHeaders(headers),
+            These_.map((_headers) => body),
+          ),
       ),
-      Task_.map(({ body }) => body),
     );
   }
 
@@ -190,18 +180,14 @@ export function tunnel<
                 body: await result.text(),
               };
             },
-            (error): RpcError =>
-              rpcError('io-ts-rpc client failed to fetch response', {
+            (error): Errors =>
+              singleError('io-ts-rpc client failed to fetch response', {
                 title: String(error),
                 details: error,
                 request: request,
               }),
           ),
       ),
-      TaskEither_.chainEitherK(parseResponse),
-      TaskEither_.chain(
-        (these): TaskEither<RpcError, TS> =>
-          pipe(logWarnings(these), Task_.map(Either_.right)),
-      ),
+      Task_.map(Either_.fold(These_.left, parseResponse)),
     );
 }
