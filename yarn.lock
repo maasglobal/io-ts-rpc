@@ -2366,10 +2366,10 @@ inquirer@^7.0.0:
     strip-ansi "^6.0.0"
     through "^2.3.6"
 
-io-ts-validator@^0.0.5:
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/io-ts-validator/-/io-ts-validator-0.0.5.tgz#6d2184a7fc04c0293a4df80f913c18f8eea6801e"
-  integrity sha512-5ZToFVK3/j4QR1jlcJjZquqolzSoElP4gCJQZR0xDOackGk42CNN9PRAYwFYG3Dj8F/Zk0lH6xrw19xvlr1QCQ==
+io-ts-validator@^0.0.6:
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/io-ts-validator/-/io-ts-validator-0.0.6.tgz#6bd66cc46f4c87f10627fbc443ba4e9847056ebd"
+  integrity sha512-NWZz34JVyKjgknDtfIGjdnoitoJomdU4xjNFpLx8BIHdgeKiIJD69RIyzbfvNPnjUMR64kcbN+iND5MQ4gTD3g==
 
 io-ts@^2.2.13:
   version "2.2.13"

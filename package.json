@@ -20,7 +20,7 @@
   "peerDependencies": {
     "fp-ts": "^2.10.0",
     "io-ts": "^2.2.13",
-    "io-ts-validator": "^0.0.5",
+    "io-ts-validator": "^0.0.6",
     "url-template": "^2.0.8"
   },
   "devDependencies": {
@@ -40,7 +40,7 @@
     "eslint-plugin-simple-import-sort": "^5.0.3",
     "fp-ts": "^2.10.0",
     "io-ts": "^2.2.13",
-    "io-ts-validator": "^0.0.5",
+    "io-ts-validator": "^0.0.6",
     "jest": "^26.5.2",
     "monocle-ts": "^2.0.0",
     "prettier": "^2.1.2",
