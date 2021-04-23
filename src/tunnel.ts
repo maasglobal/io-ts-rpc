@@ -1,7 +1,7 @@
 import * as Apply_ from 'fp-ts/lib/Apply';
 import * as Array_ from 'fp-ts/lib/Array';
 import * as Console_ from 'fp-ts/lib/Console';
-import { Either, either as Either__ } from 'fp-ts/lib/Either';
+import { Either } from 'fp-ts/lib/Either';
 import * as Either_ from 'fp-ts/lib/Either';
 import { pipe } from 'fp-ts/lib/function';
 import * as IO_ from 'fp-ts/lib/IO';
@@ -78,7 +78,7 @@ export function tunnel<
   }
 
   function encodeMethod(method: M): Either<RpcError, Method> {
-    const allowed = targetHints?.allow?.split(',') ?? [];
+    const allowed = targetHints['allow']?.split(',') ?? [];
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
@@ -147,7 +147,7 @@ export function tunnel<
         body: parseBody(body),
         warnings: parseHeaders(headers),
       },
-      Apply_.sequenceS(Either__),
+      Apply_.sequenceS(Either_.Apply),
     );
   }
 
@@ -169,7 +169,7 @@ export function tunnel<
         headers: encodeHeaders(headers),
         request: encodeRequest(request),
       },
-      Apply_.sequenceS(Either__),
+      Apply_.sequenceS(Either_.Apply),
       Task_.of,
       TaskEither_.chain(
         (encoded: { url: URI; method: Method; headers: Headers; request: Body }) =>
