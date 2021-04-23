@@ -78,7 +78,7 @@ export function tunnel<
   }
 
   function encodeMethod(method: M): Either<RpcError, Method> {
-    const allowed = targetHints?.allow?.split(',') ?? [];
+    const allowed = targetHints['allow']?.split(',') ?? [];
     if (allowed.includes(method)) {
       return Either_.right(method);
     }
