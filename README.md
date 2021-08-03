@@ -315,9 +315,12 @@ app.listen(1234);
 ./node_modules/.bin/tsc -d --rootDir src src/examples/fetch-user-{endpoint,client,server}.ts --outDir lib/
 
 # Start Test Server
-node lib/examples/fetch-user-server.js
+node lib/examples/fetch-user-server.js &
 
 # Perform Test Call
 node --eval "require('./lib/examples/fetch-user-client').fetchUser('user:1c532911-acc2-4a55-ba0b-67b40439d990').then(console.log)"
+
+# Stop Test Server
+kill -9 %-
 ```
 
