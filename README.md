@@ -135,11 +135,12 @@ mkdir -p ./schemas/examples && echo '{
     },
 
     "apiUrl": {
-      "description": "has to start https://, has to end with slash",
+      "description": "has to start https:// or http://localhost:1234/, has to end with slash",
       "type": "string",
-      "pattern": "^https://[^\\s]+/$",
+      "pattern": "^(https://[^\\s]+|http://localhost:1234(/[^\\s]+)*)/$",
       "examples": [
-        "https://example.com/iotsfjs/api/"
+        "https://example.com/iotsfjs/api/",
+        "http://localhost:1234/api/"
       ]
     },
 
@@ -199,10 +200,10 @@ mkdir -p ./schemas/examples && echo '{
 
 # Generate TypeScript Code
 npm install --dev io-ts-from-json-schema typescript
-./node_modules/.bin/iotsfjs --inputFile 'schemas/**/*.json' --outputDir src --base http://example.com/iotsfjs/ --maskNull
+./node_modules/.bin/iotsfjs --maskNull --inputFile 'schemas/**/*.json' --outputDir src --base http://example.com/iotsfjs/
 
 # Generate Tests
-npm install --dev jest @types/jest doctest-ts ts-jest fp-ts io-ts-rpc io-ts io-ts-types io-ts-validator
+npm install --dev jest @types/jest doctest-ts ts-jest fp-ts io-ts-rpc io-ts io-ts-types io-ts-validator node-fetch url-template
 ./node_modules/.bin/ts-jest config:init
 ./node_modules/.bin/doctest-ts --jest `find src -name '*.ts'`
 
@@ -211,6 +212,7 @@ npm install --dev jest @types/jest doctest-ts ts-jest fp-ts io-ts-rpc io-ts io-t
 
 # Create RPC Client
 echo "
+import fetch from 'node-fetch'
 import * as rpc from 'io-ts-rpc'
 import { validator } from 'io-ts-validator'
 
@@ -230,7 +232,7 @@ const endpoint = rpc.endpointFromHyperSchema(hyperSchema);
 export async function fetchUser(userId: UserId): Promise<User|null> {
 
   const urlVariables = await validator(endpoint.HrefTemplateVariables, 'strict').decodePromise({
-    apiUrl: 'https://example.com/iotsfjs/api/',
+    apiUrl: 'http://localhost:1234/api/',
     userId
   })
   const requestHeaders = await validator(endpoint.RequestHeaders, 'strict').decodePromise({
@@ -258,7 +260,64 @@ export async function fetchUser(userId: UserId): Promise<User|null> {
 }
 " > ./src/examples/fetch-user-client.ts
 
+# Create Test Server
+npm install --dev fp-ts io-ts-rpc io-ts io-ts-types io-ts-validator express express-pino-logger @types/assert
+echo "
+import assert = require('assert')
+import express = require('express')
+import pino = require('express-pino-logger')
+import { validator } from 'io-ts-validator'
+
+import {
+  Request,
+  Response,
+  examplesUser
+} from './fetch-user-endpoint'
+
+const logger = pino();
+const app = express();
+app.use(logger);
+app.use(
+  express.urlencoded({
+    extended: true,
+  }),
+);
+app.use(express.json());
+
+app.post('/api/user/:userId/fetch', (req, res) => {
+
+  // input validation
+  const { userId } = validator(Request).decodeSync(req.body)
+
+  // sanity check
+  assert.strictEqual(userId, req.params.userId)
+
+  // application logic
+  const [match] = examplesUser.filter(({id}) => id === userId)
+
+  // constructing a response
+  const response = validator(Response, 'strict').decodeSync({
+    data: { user: match ?? null }
+  })
+
+  // output encoding
+  const body = validator(Response).encodeSync(response)
+
+  // *boom*
+  res.send(body)
+
+});
+
+app.listen(1234);
+" > ./src/examples/fetch-user-server.ts
+
 # Compile TypeScript Code
-./node_modules/.bin/tsc -d --rootDir src src/examples/fetch-user-{endpoint,client}.ts --outDir lib/
+./node_modules/.bin/tsc -d --rootDir src src/examples/fetch-user-{endpoint,client,server}.ts --outDir lib/
+
+# Start Test Server
+node lib/examples/fetch-user-server.js
+
+# Perform Test Call
+node --eval "require('./lib/examples/fetch-user-client').fetchUser('user:1c532911-acc2-4a55-ba0b-67b40439d990').then(console.log)"
 ```
 
