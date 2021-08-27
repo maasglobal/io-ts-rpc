@@ -1991,7 +1991,7 @@ form-data@^3.0.0:
     combined-stream "^1.0.8"
     mime-types "^2.1.12"
 
-fp-ts@^2.10.0:
+fp-ts@^2.11.1:
   version "2.11.1"
   resolved "https://registry.yarnpkg.com/fp-ts/-/fp-ts-2.11.1.tgz#b1eeb2540728b6328542664888442f8f805d2443"
   integrity sha512-CJOfs+Heq/erkE5mqH2mhpsxCKABGmcLyeEwPxtbTlkLkItGUs6bmk2WqjB2SgoVwNwzTE5iKjPQJiq06CPs5g==
@@ -2312,7 +2312,7 @@ io-ts-validator@^0.0.6:
   resolved "https://registry.yarnpkg.com/io-ts-validator/-/io-ts-validator-0.0.6.tgz#6bd66cc46f4c87f10627fbc443ba4e9847056ebd"
   integrity sha512-NWZz34JVyKjgknDtfIGjdnoitoJomdU4xjNFpLx8BIHdgeKiIJD69RIyzbfvNPnjUMR64kcbN+iND5MQ4gTD3g==
 
-io-ts@^2.2.13:
+io-ts@^2.2.16:
   version "2.2.16"
   resolved "https://registry.yarnpkg.com/io-ts/-/io-ts-2.2.16.tgz#597dffa03db1913fc318c9c6df6931cb4ed808b2"
   integrity sha512-y5TTSa6VP6le0hhmIyN0dqEXkrZeJLeC5KApJq6VLci3UEKF80lZ+KuoUs02RhBxNWlrqSNxzfI7otLX1Euv8Q==
