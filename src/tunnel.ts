@@ -30,7 +30,7 @@ export function tunnel<
   HS,
   SS,
   TH extends Record<string, string>,
-  TS
+  TS,
 >(
   method: M,
   target: UV,
