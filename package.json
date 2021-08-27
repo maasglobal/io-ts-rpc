@@ -2,21 +2,23 @@
   "name": "io-ts-rpc",
   "version": "0.0.7",
   "description": "Remote procedure calls with io-ts decoder/encoder support",
+  "license": "MIT",
+  "keywords": [
+    "io-ts",
+    "typescript"
+  ],
+  "bugs": {
+    "url": "https://github.com/maasglobal/io-ts-rpc/issues"
+  },
+  "homepage": "https://github.com/maasglobal/io-ts-rpc/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maasglobal/io-ts-rpc.git"
+  },
   "main": "lib/index.js",
   "files": [
     "lib/**/*"
   ],
-  "scripts": {
-    "test": "jest --no-cache",
-    "clean": "rm -rf lib",
-    "typecheck": "tsc -p src/tsconfig.json",
-    "build": "yarn clean && tsc",
-    "eslint": "eslint --max-warnings=0 '**/*.{ts,js,json}'",
-    "lint": "yarn eslint",
-    "ci": "yarn lint && yarn typecheck && yarn test && yarn build",
-    "deploy-npm": "yarn ci && yarn publish --non-interactive",
-    "deploy-alpha": "yarn deploy-npm --tag alpha"
-  },
   "peerDependencies": {
     "fp-ts": "^2.11.1",
     "io-ts": "^2.2.16",
@@ -48,17 +50,15 @@
     "typescript": "^4.4.2",
     "url-template": "^2.0.8"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/maasglobal/io-ts-rpc.git"
-  },
-  "keywords": [
-    "io-ts",
-    "typescript"
-  ],
-  "bugs": {
-    "url": "https://github.com/maasglobal/io-ts-rpc/issues"
-  },
-  "homepage": "https://github.com/maasglobal/io-ts-rpc/",
-  "license": "MIT"
+  "scripts": {
+    "test": "jest --no-cache",
+    "clean": "rm -rf lib",
+    "typecheck": "tsc -p src/tsconfig.json",
+    "build": "yarn clean && tsc",
+    "eslint": "eslint --max-warnings=0 '**/*.{ts,js,json}'",
+    "lint": "yarn eslint",
+    "ci": "yarn lint && yarn typecheck && yarn test && yarn build",
+    "deploy-npm": "yarn ci && yarn publish --non-interactive",
+    "deploy-alpha": "yarn deploy-npm --tag alpha"
+  }
 }
