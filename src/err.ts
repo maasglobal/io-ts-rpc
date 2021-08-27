@@ -6,7 +6,7 @@ export type RpcError = {
 };
 export const rpcError = (reason: string, debug?: Record<string, unknown>): RpcError => ({
   reason,
-  debug,
+  ...(typeof debug === 'undefined' ? {} : { debug }),
 });
 
 export type Errors = NonEmptyArray<RpcError>;
