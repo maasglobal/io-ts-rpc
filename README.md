@@ -239,7 +239,7 @@ export async function fetchUser(userId: UserId): Promise<User|null> {
     'content-type': CONTENT_TYPE_JSON
   })
   const request = await validator(endpoint.Request, 'strict').decodePromise({
-    userId 
+    userId
   })
 
   const tunnel = rpc.tunnel(POST, urlVariables, requestHeaders, endpoint, fetch)
@@ -253,7 +253,7 @@ export async function fetchUser(userId: UserId): Promise<User|null> {
     throw new Error('application error: ' + result.right.error)
   }
   if (Null.is(result.right.data.user)) {
-    return null     
+    return null
   }
   return result.right.data.user
 
@@ -323,4 +323,3 @@ node --eval "require('./lib/examples/fetch-user-client').fetchUser('user:1c53291
 # Stop Test Server
 kill -9 %-
 ```
-
