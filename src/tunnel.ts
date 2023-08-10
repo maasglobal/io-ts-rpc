@@ -11,13 +11,13 @@ import { validator } from 'io-ts-validator';
 
 import { Endpoint } from './endpoint';
 import { Errors, singleError } from './err';
-import { Body, Fetch, Headers, Method } from './fetch';
+import { Body, Fetch, FetchResult, Headers, Method } from './fetch';
 import * as Headers_ from './headers';
 import { URI, URITemplate } from './uri-template';
 import * as URITemplate_ from './uri-template';
 
 type HTTPRequest = { url: URI; method: Method; headers: Headers; body: Body };
-type HTTPResponse = { headers: Headers; body: Body };
+type HTTPResponse = { status: FetchResult['status']; headers: Headers; body: Body };
 
 type HTTPExchange = {
   request: HTTPRequest;
@@ -181,6 +181,7 @@ export function tunnel<
             return {
               request: encoded,
               response: {
+                status: result.status,
                 headers: {
                   ...implicit,
                   ...explicit,
